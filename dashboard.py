@@ -3,7 +3,6 @@ import sqlite3
 import pandas as pd
 import altair as alt
 from streamlit_autorefresh import st_autorefresh
-
 # -----------------------
 # Page config
 # -----------------------
