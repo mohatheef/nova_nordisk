@@ -4,17 +4,24 @@ import pandas as pd
 import altair as alt
 from streamlit_autorefresh import st_autorefresh
 
-
-
-# st.set_page_config() must be the very first Streamlit command.
+# -----------------------
+# Page config
+# -----------------------
 st.set_page_config(page_title="Wegovy Sampark Dashboard", layout="wide")
+st.title("📊 Wegovy Sampark Dashboard")
 
+# -----------------------
+# DB config
+# -----------------------
 DB = "sampark.db"
 
+# -----------------------
+# Helper functions
+# -----------------------
 def calculate_bmi(height, weight):
     try:
         h_m = height / 100
-        bmi = weight / (h_m**2)
+        bmi = weight / (h_m ** 2)
         if bmi < 18.5:
             category = "Underweight"
         elif bmi < 25:
@@ -32,12 +39,14 @@ def make_progress_bar(checkins, total=12):
     filled = max(0, min(10, filled))
     return "▰" * filled + "▱" * (10 - filled)
 
-st.title("📊 Wegovy Sampark Dashboard")
-
-# Autorefresh every 5s so judges see live updates
+# -----------------------
+# Auto-refresh every 5 seconds
+# -----------------------
 st_autorefresh(interval=5000, key="dashboard_refresh")
 
-# Read DB
+# -----------------------
+# Read data from DB
+# -----------------------
 conn = sqlite3.connect(DB)
 df = pd.read_sql("SELECT * FROM users", conn)
 conn.close()
@@ -45,7 +54,7 @@ conn.close()
 if df.empty:
     st.info("⚠️ No patients yet. Interact with the WhatsApp bot first.")
 else:
-    # Clamp checkins at 12 for display
+    # Clamp checkins at 12
     df["checkins"] = df["checkins"].clip(upper=12)
 
     # Compute BMI
@@ -54,14 +63,19 @@ else:
         axis=1
     ))
 
-    df["Adherence Progress"] = df["checkins"].apply(lambda x: make_progress_bar(x))
+    # Adherence progress bar
+    df["Adherence Progress"] = df["checkins"].apply(make_progress_bar)
 
-    # Mask phone numbers → only last 3 digits visible
+    # Mask phone numbers
     df["phone_masked"] = df["phone"].apply(lambda x: f"*******{x[-3:]}" if x else "—")
 
+    # Columns to display
     df_display = df[["phone_masked", "name", "age", "height", "weight",
                      "BMI", "BMI Category", "family_member", "checkins", "Adherence Progress"]].fillna("—")
 
+    # -----------------------
+    # Live Patients Table
+    # -----------------------
     st.subheader("Live Patients")
     st.dataframe(df_display, use_container_width=True)
 
@@ -73,6 +87,9 @@ else:
     col2.metric("Average BMI", f"{avg_bmi:.1f}" if not pd.isna(avg_bmi) else "—")
     col3.metric("Avg Check-ins", f"{df['checkins'].mean():.1f}")
 
+    # -----------------------
+    # BMI Distribution
+    # -----------------------
     st.markdown("---")
     st.subheader("BMI Distribution")
     bmi_df = df.dropna(subset=["BMI"])
@@ -86,11 +103,14 @@ else:
     else:
         st.info("No BMI data yet.")
 
+    # -----------------------
+    # Adherence Breakdown
+    # -----------------------
     st.markdown("---")
     st.subheader("Adherence Breakdown")
     checkins_chart = alt.Chart(df).mark_bar().encode(
-            x=alt.X("name:N", sort="-y", title="Patient"),
-            y=alt.Y("checkins:Q", title="Check-ins"),
-            tooltip=["name", "checkins"]
+        x=alt.X("name:N", sort="-y", title="Patient"),
+        y=alt.Y("checkins:Q", title="Check-ins"),
+        tooltip=["name", "checkins"]
     )
     st.altair_chart(checkins_chart, use_container_width=True)
