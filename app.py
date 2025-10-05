@@ -1,8 +1,15 @@
 from flask import Flask, request, Response, send_from_directory
 from twilio.twiml.messaging_response import MessagingResponse
-import difflib, sqlite3, traceback, random, os, requests, urllib.parse
+import difflib
+import sqlite3
+import traceback
+import random
+import os
+import requests
+import urllib.parse
 from xml.etree import ElementTree
 import pandas as pd
+
 
 app = Flask(__name__)
 DB = "sampark.db"
