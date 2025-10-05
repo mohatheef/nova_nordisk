@@ -10,11 +10,12 @@ import urllib.parse
 from xml.etree import ElementTree
 import pandas as pd
 
-
+# -------------------------------
+# Flask app and database setup
+# -------------------------------
 app = Flask(__name__)
 DB = "sampark.db"
 
-# ----- DB Setup -----
 def init_db():
     conn = sqlite3.connect(DB)
     c = conn.cursor()
@@ -39,7 +40,9 @@ def init_db():
 
 init_db()
 
-# ----- FAQ & Content -----
+# -------------------------------
+# FAQ, Recipes, and Tips
+# -------------------------------
 FAQS = {
     "what are side effects": "🤒 Common side effects: nausea, vomiting, constipation. Ginger tea + small meals help.\n(Type 'doctor' to connect to our experts)",
     "how to store wegovy": "🧊 Store in fridge (2-8°C). Do not freeze.",
@@ -66,7 +69,9 @@ HYDRATION_TIPS = [
 
 DOCTOR_CONTACT = "👩‍⚕️ Connect to an expert here: https://example.com/connect-doctor"
 
-# ----- Helpers -----
+# -------------------------------
+# Helper Functions
+# -------------------------------
 def find_answer(user_text):
     user_text = user_text.lower()
     matches = difflib.get_close_matches(user_text, FAQS.keys(), n=1, cutoff=0.4)
@@ -106,7 +111,9 @@ def update_field(phone, field, value):
     conn.commit()
     conn.close()
 
-# ----- City Normalization -----
+# -------------------------------
+# City Normalization
+# -------------------------------
 CITY_MAP = {
     "bengaluru": "Bangalore",
     "bangalore": "Bangalore",
@@ -124,7 +131,9 @@ def normalize_city(city: str):
     city_norm = city.lower().strip()
     return CITY_MAP.get(city_norm, city.title())
 
-# ----- Pharmacy Locator -----
+# -------------------------------
+# Pharmacy Locator
+# -------------------------------
 def pharmacy_locator(city):
     if not city:
         return "⚠️ City not set. Please complete onboarding."
@@ -141,7 +150,9 @@ def pharmacy_locator(city):
     else:
         return f"🌍 Pharmacy locator is currently available only for Bangalore. (Your city: {city_std})"
 
-# ----- Knowledge Hub -----
+# -------------------------------
+# Knowledge Hub (PubMed + Trials)
+# -------------------------------
 def fetch_pubmed(query="Wegovy AND Novo Nordisk AND obesity", max_results=3):
     base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
     search_url = f"{base_url}esearch.fcgi?db=pubmed&term={urllib.parse.quote(query)}&retmax={max_results}&retmode=json"
@@ -178,13 +189,17 @@ def fetch_clinical_trials(query="Wegovy Novo Nordisk", max_results=3):
         trials.append(f"• {title}\nCondition: {condition} | Status: {status}\n🔗 {url}")
     return trials or ["⚠️ No clinical trials found."]
 
-# ----- Route to serve onboarding video -----
+# -------------------------------
+# Serve Video
+# -------------------------------
 @app.route('/video/<path:filename>')
 def video_files(filename):
     folder = os.path.dirname(os.path.abspath(__file__))
     return send_from_directory(folder, filename)
 
-# ----- Webhook -----
+# -------------------------------
+# Main Webhook for WhatsApp
+# -------------------------------
 @app.route("/incoming", methods=["POST"])
 def incoming():
     try:
@@ -203,11 +218,10 @@ def incoming():
             return Response(str(resp), mimetype="application/xml")
 
         name, age, height, weight, checkins, family_member, state, msg_count, city, fam_name, fam_relation = row
-
         msg_count = (msg_count or 0) + 1
         update_field(phone, "msg_count", msg_count)
 
-        # ----- Onboarding -----
+        # ---- Onboarding states ----
         if state == "new":
             update_field(phone, "state", "awaiting_name")
             msg.body("✅ Product verified: Wegovy authenticity confirmed.\n👋 Welcome to Wegovy Sampark! What's your *name*?")
@@ -271,7 +285,7 @@ def incoming():
             msg.body(f"📨 Family member added: {fam_info} ❤️\nType 'menu' to see options.")
             return Response(str(resp), mimetype="application/xml")
 
-        # ----- Menu -----
+        # ---- Menu ----
         if body_lc == "menu":
             menu_text = (
                 "📌 *Main Menu*\n\n"
@@ -286,7 +300,7 @@ def incoming():
             msg.body(menu_text)
             return Response(str(resp), mimetype="application/xml")
 
-        # ----- Menu Options -----
+        # ---- Menu options ----
         if body_lc == "1":
             msg.body("📹 Watch the onboarding video here:\nhttps://www.dropbox.com/scl/fi/kgizm8vb8uhdqlaxswqfx/onboarding.mp4?rlkey=7f5krq9j630jd8n2wp5fohypc&st=9eaijrh8&dl=1")
         elif body_lc == "2":
@@ -303,7 +317,7 @@ def incoming():
             msg.body("🩺 *Knowledge Hub — PubMed*\n" + "\n\n".join(pubs))
             msg.body("🧪 *Clinical Trials*\n" + "\n\n".join(trials))
 
-        # ----- Weekly Check-in -----
+        # ---- Weekly check-in ----
         if body_lc in ("check-in", "checkin", "check in"):
             if checkins < 12:
                 checkins += 1
@@ -318,14 +332,14 @@ def incoming():
                 reply = "✅ You’ve already completed all 12 weeks! 🎉 Challenge already complete."
             msg.body(reply)
 
-        # ----- Fallback -----
+        # ---- Fallback ----
         ans = find_answer(body_lc)
         if ans:
             msg.body(ans)
         elif body_lc not in ("1","2","3","4","5","6","check-in","checkin","check in","doctor"):
             msg.body("🤔 Sorry, I didn't get that. Type 'menu' to see options or ask me anything about Wegovy.")
 
-        # ----- Hydration reminder -----
+        # ---- Hydration reminder ----
         if state == "ready" and (msg_count % 2 == 0) and body_lc not in ("check-in","checkin","check in"):
             msg.body(random.choice(HYDRATION_TIPS))
 
@@ -338,5 +352,8 @@ def incoming():
         resp.message("⚠️ Oops — server error. Please type 'menu' to continue.")
         return Response(str(resp), mimetype="application/xml")
 
+# -------------------------------
+# Run app
+# -------------------------------
 if __name__ == "__main__":
     app.run(port=5050, debug=True)
